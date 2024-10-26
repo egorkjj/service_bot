@@ -1,0 +1,8 @@
+aiogram==2.7
+sqlalchemy
+environs
+asyncpg
+greenlet
+pytz
+openpyxl
+aiosqlite

@@ -1,0 +1,4 @@
+.env
+venv/
+tg_bot/photos
+tg_bot/documents

@@ -1,0 +1,5 @@
+from .registration import register_registration_handlers
+from .user_handlers import register_user_handlers
+from .admin_handlers import register_admin_handlers
+from .service_handlers import register_service_handlers
+from .user_sell import register_sell_handlers
