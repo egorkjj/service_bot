@@ -3,16 +3,16 @@ from aiogram.dispatcher import FSMContext
 from aiogram.types import InputFile, InputMediaPhoto
 
 from tg_bot.keyboards import user_menu, choice_new_kb, models_kb, types_kb, create_iphones_kb, backtochoice_kb, photos_user_kb, final_appl_kb, remont_appl_acception, after_registration_user, pay_kb
-from tg_bot.keyboards import toredact_kb, toredakt_user_kb, categories_appl_kb, back_from_appl_info_kb, all_applications, fromprofile_kb,  touser_link_kb, back_fromcity_redakt, sub_kb, sellmodels_kb, back_from_sell_info_kb
+from tg_bot.keyboards import toredact_kb, toredakt_user_kb, categories_appl_kb, back_from_appl_info_kb, all_applications, fromprofile_kb,  touser_link_kb, back_fromcity_redakt, sub_kb, sellmodels_kb, back_from_sell_info_kb, back_fromredakt_kb
 from tg_bot.DBSM import add_application, get_services_list_for_remont, remont_application_info, close_appl_remont, get_service_info, remont_appl_info_for_stat, decline_remont_application, user_info, change_city_request, sell_appl_info_for_stat, decline_sell_application, is_phone, get_sub_price
-from tg_bot.DBSM import fetch, user_info
+from tg_bot.DBSM import fetch, user_info, change_phone, change_adress
 from tg_bot import generate_random_string
 from tg_bot.states import user
 
 import json, os
 from typing import List
 
-admin_ids = [1261888898]
+admin_ids = [1261888898, 1441962095]
 
 def register_user_handlers(dp: Dispatcher):
     dp.register_message_handler(proc_info_sub, state = [user.phone, user.adress])
@@ -24,7 +24,8 @@ def register_user_handlers(dp: Dispatcher):
     dp.register_callback_query_handler(delapl_sell, text_startswith = "т_")
     dp.register_callback_query_handler(process_menu, text_startswith = "usermenu")
     dp.register_callback_query_handler(process_edit, text_startswith = "toredakt")
-    dp.register_callback_query_handler(process_cityedit, text_startswith = "er_", state = user.city_edit)
+    dp.register_message_handler(process_redakt, state = [user.phone_edit, user.adress_edit])
+    dp.register_callback_query_handler(process_cityedit, text_startswith = "er_", state = [user.city_edit, user.phone_edit, user.adress_edit])
     dp.register_callback_query_handler(decision_remont, text_startswith = "racc")
     dp.register_callback_query_handler(process_new, text_startswith = "newtype")
     dp.register_callback_query_handler(process_models, text_startswith = "mdl")
@@ -105,6 +106,26 @@ async def process_edit(call: types.CallbackQuery, state: FSMContext):
     if action == "city":
         await call.message.edit_text("Выберите город ниже 👇", reply_markup= await back_fromcity_redakt())
         await user.city_edit.set()
+    
+    elif action == "adress":
+        await call.message.edit_text("Введите новый адрес ниже 👇", reply_markup= back_fromredakt_kb())
+        await user.adress_edit.set()
+    
+    elif action == "phone":
+        await call.message.edit_text("Введите новую модель телефона ниже 👇", reply_markup= back_fromredakt_kb())
+        await user.phone_edit.set()
+
+
+
+async def process_redakt(message: types.Message, state: FSMContext):
+    if await state.get_state() == user.phone_edit.state:
+        await change_phone(message.from_user.id, message.text)
+        await message.answer(f"Модель телефона изменена на <i>{message.text}</i> ✅", reply_markup= after_registration_user())
+    else:
+        await change_adress(message.from_user.id, message.text)
+        await message.answer(f"Адрес изменен на <i>{message.text}</i> ✅", reply_markup= after_registration_user())
+    await state.finish()
+
 
 
 async def process_cityedit(call: types.CallbackQuery, state: FSMContext):
@@ -114,11 +135,13 @@ async def process_cityedit(call: types.CallbackQuery, state: FSMContext):
         await state.finish()
         return
     
-    city = call.data.split("_")[1]
-    await change_city_request(call.from_user.id, city)
-    await state.finish()
-    await call.message.answer(f"Город изменен на <i>{city}</i> ✅",  reply_markup= after_registration_user())
-    await call.message.delete()
+    if await state.get_state() == user.city_edit.state:
+
+        city = call.data.split("_")[1]
+        await change_city_request(call.from_user.id, city)
+        await state.finish()
+        await call.message.answer(f"Город изменен на <i>{city}</i> ✅",  reply_markup= after_registration_user())
+        await call.message.delete()
 
 
 
@@ -202,8 +225,6 @@ async def process_new(call: types.CallbackQuery, state: FSMContext):
     
     if action == 1: 
         await call.message.edit_text("Что бы вы хотели продать/обменять?", reply_markup= sellmodels_kb())
-        print("edited")
-        print(call.message.reply_markup)
 
     elif action == 2:
         await call.message.edit_text("Что бы вы хотели отремонтировать?", reply_markup= models_kb())
@@ -341,7 +362,6 @@ async def process_final(call: types.CallbackQuery, state: FSMContext):
 
 
 async def redakt_desc(call: types.CallbackQuery, state: FSMContext):
-    print(call.data)
     if call.data == "tochange_back":
         async with state.proxy() as data:
             await call.message.edit_text(f"Модель: <i>{data['selected_model']}</i>\nОписание проблемы: <i>{data['desc']}</i>", reply_markup= final_appl_kb())

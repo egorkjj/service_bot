@@ -245,6 +245,23 @@ async def fetch(user_id, phone, adress):
     await session.commit()
     await session.close()
 
+async def change_adress(user_id, adress):
+    Session = async_sessionmaker()
+    session = Session(bind = engine)
+    curr = await session.execute(select(Users).filter(Users.user_id == user_id))
+    curr = curr.scalars().first()
+    curr.adress = adress
+    await session.commit()
+    await session.close()
+
+async def change_phone(user_id, phone):
+    Session = async_sessionmaker()
+    session = Session(bind = engine)
+    curr = await session.execute(select(Users).filter(Users.user_id == user_id))
+    curr = curr.scalars().first()
+    curr.phone = phone
+    await session.commit()
+    await session.close()
 
 
 
@@ -487,7 +504,10 @@ async def is_active_sell_appl(id):
         return False, "К сожалению, данное объявление снято с публикации ("
     
     if curr.closed:
-        return False, "К сожалению, данное объявление завершено"
+        return False, "К сожалению, данное объявление завершено ("
+    
+    if (datetime.datetime.now(pytz.timezone('Europe/Moscow')) - pytz.timezone('Europe/Moscow').localize(curr.date_add)) > datetime.timedelta(seconds=20):
+        return False, "К сожалению, данную заявку нельзя принять ("
     
     return True, None
 
@@ -513,6 +533,14 @@ async def close_appl_sell(appl_id, service_link):
     await session.commit()
     await session.close()
 
+
+async def sell_application_full_info(appl_id):
+    Session = async_sessionmaker()
+    session = Session(bind = engine)
+    curr = await session.execute(select(Sell).filter(Sell.id == appl_id))
+    curr = curr.scalars().first()
+    await session.close()
+    return curr.model, curr.equipment, curr.condition, curr.battery, curr.price, curr.memory, curr.display_size
 
 
 async def decline_sell_application(appl_id):

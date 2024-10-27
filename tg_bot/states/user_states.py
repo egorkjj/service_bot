@@ -30,6 +30,8 @@ class user(StatesGroup):
     city_edit = State()
     phone = State()
     adress = State()
+    adress_edit = State()
+    phone_edit = State()
 
 
 class service(StatesGroup):

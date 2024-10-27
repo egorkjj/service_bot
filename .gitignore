@@ -2,3 +2,6 @@
 venv/
 tg_bot/photos
 tg_bot/documents
+*.sqlite3
+*.db
+*.sqlite

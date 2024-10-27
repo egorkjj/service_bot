@@ -1,14 +1,15 @@
-from aiogram import Dispatcher, types
+from aiogram import Dispatcher, types, Bot
 from aiogram.dispatcher import FSMContext
-from aiogram.types import InputFile, InputMediaPhoto
+from aiogram.types import InputFile, InputMediaPhoto, MediaGroup
 
 from tg_bot.keyboards import selltypes_kb, sellcreate_iphones_kb, sellmodels_kb, sellbacktochoice_kb, choice_new_kb, memory_kb, sizes_kb, finalsell_kb, user_menu, sell_appl_acception, after_registration_user, touser_link_kb
-from tg_bot.DBSM import get_services_list_for_sell, add_application_sell, get_service_info, sell_application_info, close_appl_sell
+from tg_bot.DBSM import get_services_list_for_sell, add_application_sell, get_service_info, sell_application_info, close_appl_sell, is_active_sell_appl, sell_application_full_info
 from tg_bot import generate_random_string
 from tg_bot.states import sell
 
-import json, os
+import json, os, asyncio
 from typing import List
+from threading import Thread as th
 
 def register_sell_handlers(dp: Dispatcher):
     dp.register_callback_query_handler(process_models, text_startswith = "smdl")
@@ -179,6 +180,7 @@ async def proc_choice(call: types.CallbackQuery, state: FSMContext):
     if action:
         async with state.proxy() as data:
             appl_id = await add_application_sell(call.from_user, data['model'], data['size'], data['memory'], data['equip'], data['final_sell'], data['acum'], data['sost'])
+            th(target= thread_runner, args= (appl_id, )).start()
             for i in await get_services_list_for_sell(call.from_user.id):
 
                 if len(data['photos_sell']) == 1:
@@ -194,8 +196,8 @@ async def proc_choice(call: types.CallbackQuery, state: FSMContext):
                     else:
                         await call.message.bot.send_message(chat_id= i, text = f"Пользователь хочет отремонтировать <i>{data['model']}</i>\n\nВстроенная память: <i>{data['memory']}</i>\nОстаточная емкость аккумулятора: <i>{data['acum']}</i>\nЧто входит в комплект: <i>{data['equip']}</i>\nСостояние устройства: <i>{data['sost']}</i>\nПредложенная цена/устройство: <i>{data['final_sell']}</i>\n\nФотографии отправил выше ☝", reply_markup= sell_appl_acception(appl_id))
             
-            for path in data['photos_sell']:
-                os.remove(path)
+            for i, path in enumerate(data['photos_sell']):
+                os.rename(path, f"tg_bot/photos/sellappl{appl_id}_{i}.jpg")
             
             await call.message.edit_text(f"Готово! Ваша заявка на продажу/обмен № {appl_id} была успешно отправлена сервисам ✅", reply_markup= after_registration_user())
             await state.finish()
@@ -215,7 +217,7 @@ async def proc_choice(call: types.CallbackQuery, state: FSMContext):
 
 async def proc_decision_sell(call: types.CallbackQuery, state: FSMContext):
     if call.data == "rsell_decl":
-
+        
         await call.message.reply("Успешно отказано ✅")
     
     else:
@@ -227,8 +229,6 @@ async def proc_decision_sell(call: types.CallbackQuery, state: FSMContext):
         
         appl_id = int(call.message.text[call.message.text.index("№") + 1:].strip().split()[0])
         user_id, model, price = await sell_application_info(appl_id)
-        print(appl_id)
-        print(model)
         user_link = f'https://t.me/{call.from_user.username}'
 
         await call.message.bot.send_message(chat_id= service_id, text = f"Заявка № {appl_id}\n\n<a href = '{user_link}'>Пользователь</a> согласен на ваши условия по продаже/обмену <i>{model}</i> ✅", reply_markup= touser_link_kb(user_link))
@@ -241,4 +241,30 @@ async def proc_decision_sell(call: types.CallbackQuery, state: FSMContext):
         await call.message.edit_reply_markup(reply_markup= None)
     except:
         pass
-    
+
+
+async def send_push_to_admins(appl_id):
+    await asyncio.sleep(21) #57601
+    bot = Bot(token = "7060072417:AAEMd9zhYgaQoE_m-HldTbsSex0EvkTomNI")
+    if (await is_active_sell_appl(appl_id))[1] == "К сожалению, данную заявку нельзя принять (":
+        info = await sell_application_full_info(appl_id)
+        text = f"Заявку на продажу/обмен не приняли за 16 часов!!\nМодель: {info[0]}\nКомплект: {info[1]}\nСостояние: {info[2]}\nБатарея: {info[3]}\nЖелаемая цена: {info[4]}\nПамять: {info[5]}\nРазмер дисплея: {info[6]}"
+        count = 1
+        if not os.path.isfile(f"tg_bot/photos/sellappl{appl_id}_1.jpg"):
+            await bot.send_photo(chat_id= 1441962095, photo= InputFile(f"tg_bot/photos/sellappl{appl_id}_0.jpg"), caption = text)
+        else:
+            group = MediaGroup()
+            while os.path.isfile(f"tg_bot/photos/sellappl{appl_id}_{count}.jpg"):
+
+                group.attach_photo(InputFile(f"tg_bot/photos/sellappl{appl_id}_{count}.jpg"))
+                count += 1
+
+            await bot.send_media_group(chat_id= 1441962095, text = text)
+        
+    count = 0
+    while os.path.isfile(f"tg_bot/photos/sellappl{appl_id}_{count}.jpg"):
+        os.remove(f"tg_bot/photos/sellappl{appl_id}_{count}.jpg")
+        count += 1
+
+def thread_runner(appl_id):
+    asyncio.run(send_push_to_admins(appl_id))

@@ -159,6 +159,10 @@ async def back_fromcity_redakt():
     kb.add(InlineKeyboardButton(text = "Назад 🔙", callback_data= "er_back"))
     return kb
 
+def back_fromredakt_kb():
+    kb  =InlineKeyboardMarkup()
+    kb.add(InlineKeyboardButton(text = "Назад 🔙", callback_data= "er_back"))
+    return kb
 
 def sub_kb():
     kb = InlineKeyboardMarkup()
